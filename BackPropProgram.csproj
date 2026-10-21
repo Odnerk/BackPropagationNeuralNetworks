@@ -6,7 +6,14 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <RootNamespace>CodingBackProp</RootNamespace>
-    <AssemblyName>EncapsulatedCode</AssemblyName>
+    <AssemblyName>BackPropProgram</AssemblyName>
   </PropertyGroup>
+
+  <!-- Exclude subfolders from the root project so it builds BackPropProgram.cs cleanly -->
+  <ItemGroup>
+    <Compile Remove="original/**" />
+    <Compile Remove="src/**" />
+    <Compile Remove="*backup*/**" />
+  </ItemGroup>
 
 </Project>

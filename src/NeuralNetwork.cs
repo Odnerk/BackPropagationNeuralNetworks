@@ -3,25 +3,25 @@ using System;
 namespace CodingBackProp
 {
   /// <summary>
-  /// A 3-layer fully connected neural network trained with back-propagation.
-  /// Supports Mean Squared Error and Cross-Entropy loss functions, with optional L2 Weight Decay (regularization).
+  /// 3-layer fully connected neural network trained with back-propagation.
+  /// Supports MSE and Cross-Entropy loss, with optional L2 weight decay.
   /// </summary>
   public class NeuralNetwork
   {
-    private int numInput; // number input nodes
-    private int numHidden;
-    private int numOutput;
+    private readonly int numInput;
+    private readonly int numHidden;
+    private readonly int numOutput;
 
-    private double[] inputs;
-    private double[][] ihWeights; // input-hidden
-    private double[] hBiases;
-    private double[] hOutputs;
+    private readonly double[] inputs;
+    private readonly double[][] ihWeights; // input → hidden
+    private readonly double[] hBiases;
+    private readonly double[] hOutputs;
 
-    private double[][] hoWeights; // hidden-output
-    private double[] oBiases;
-    private double[] outputs;
+    private readonly double[][] hoWeights; // hidden → output
+    private readonly double[] oBiases;
+    private readonly double[] outputs;
 
-    private Random rnd;
+    private readonly Random rnd;
 
     public NeuralNetwork(int numInput, int numHidden, int numOutput)
     {
@@ -29,23 +29,23 @@ namespace CodingBackProp
       this.numHidden = numHidden;
       this.numOutput = numOutput;
 
-      this.inputs = new double[numInput];
+      inputs = new double[numInput];
 
-      this.ihWeights = MakeMatrix(numInput, numHidden, 0.0);
-      this.hBiases = new double[numHidden];
-      this.hOutputs = new double[numHidden];
+      ihWeights = MakeMatrix(numInput, numHidden, 0.0);
+      hBiases = new double[numHidden];
+      hOutputs = new double[numHidden];
 
-      this.hoWeights = MakeMatrix(numHidden, numOutput, 0.0);
-      this.oBiases = new double[numOutput];
-      this.outputs = new double[numOutput];
+      hoWeights = MakeMatrix(numHidden, numOutput, 0.0);
+      oBiases = new double[numOutput];
+      outputs = new double[numOutput];
 
-      this.rnd = new Random(0);
-      this.InitializeWeights();
+      rnd = new Random(0);
+      InitializeWeights();
     }
 
     private static double[][] MakeMatrix(int rows, int cols, double v)
     {
-      double[][] result = new double[rows][];
+      var result = new double[rows][];
       for (int r = 0; r < result.Length; ++r)
         result[r] = new double[cols];
       for (int i = 0; i < rows; ++i)
@@ -56,18 +56,16 @@ namespace CodingBackProp
 
     private void InitializeWeights()
     {
-      int numWeights = (numInput * numHidden) +
-        (numHidden * numOutput) + numHidden + numOutput;
-      double[] initialWeights = new double[numWeights];
+      int numWeights = (numInput * numHidden) + (numHidden * numOutput) + numHidden + numOutput;
+      var initialWeights = new double[numWeights];
       for (int i = 0; i < initialWeights.Length; ++i)
         initialWeights[i] = (0.001 - 0.0001) * rnd.NextDouble() + 0.0001;
-      this.SetWeights(initialWeights);
+      SetWeights(initialWeights);
     }
 
     public void SetWeights(double[] weights)
     {
-      int numWeights = (numInput * numHidden) +
-        (numHidden * numOutput) + numHidden + numOutput;
+      int numWeights = (numInput * numHidden) + (numHidden * numOutput) + numHidden + numOutput;
       if (weights.Length != numWeights)
         throw new Exception("Bad weights array in SetWeights");
 
@@ -87,9 +85,8 @@ namespace CodingBackProp
 
     public double[] GetWeights()
     {
-      int numWeights = (numInput * numHidden) +
-        (numHidden * numOutput) + numHidden + numOutput;
-      double[] result = new double[numWeights];
+      int numWeights = (numInput * numHidden) + (numHidden * numOutput) + numHidden + numOutput;
+      var result = new double[numWeights];
       int k = 0;
       for (int i = 0; i < ihWeights.Length; ++i)
         for (int j = 0; j < ihWeights[0].Length; ++j)
@@ -106,22 +103,24 @@ namespace CodingBackProp
 
     public double[] ComputeOutputs(double[] xValues)
     {
-      double[] hSums = new double[numHidden];
-      double[] oSums = new double[numOutput];
+      var hSums = new double[numHidden];
+      var oSums = new double[numOutput];
 
       for (int i = 0; i < xValues.Length; ++i)
-        this.inputs[i] = xValues[i];
+        inputs[i] = xValues[i];
 
+      // accumulate weighted inputs into each hidden node
       for (int j = 0; j < numHidden; ++j)
         for (int i = 0; i < numInput; ++i)
-          hSums[j] += this.inputs[i] * this.ihWeights[i][j];
+          hSums[j] += inputs[i] * ihWeights[i][j];
 
       for (int i = 0; i < numHidden; ++i)
-        hSums[i] += this.hBiases[i];
+        hSums[i] += hBiases[i];
 
       for (int i = 0; i < numHidden; ++i)
-        this.hOutputs[i] = HyperTan(hSums[i]);
+        hOutputs[i] = HyperTan(hSums[i]);
 
+      // accumulate hidden outputs into each output node
       for (int j = 0; j < numOutput; ++j)
         for (int i = 0; i < numHidden; ++i)
           oSums[j] += hOutputs[i] * hoWeights[i][j];
@@ -132,16 +131,17 @@ namespace CodingBackProp
       double[] softOut = Softmax(oSums);
       Array.Copy(softOut, outputs, softOut.Length);
 
-      double[] retResult = new double[numOutput];
-      Array.Copy(this.outputs, retResult, retResult.Length);
+      var retResult = new double[numOutput];
+      Array.Copy(outputs, retResult, retResult.Length);
       return retResult;
     }
 
+    // clamps extreme values to avoid overflow in tanh
     private static double HyperTan(double x)
     {
       if (x < -20.0) return -1.0;
-      else if (x > 20.0) return 1.0;
-      else return Math.Tanh(x);
+      if (x > 20.0) return 1.0;
+      return Math.Tanh(x);
     }
 
     private static double[] Softmax(double[] oSums)
@@ -150,40 +150,39 @@ namespace CodingBackProp
       for (int i = 0; i < oSums.Length; ++i)
         sum += Math.Exp(oSums[i]);
 
-      double[] result = new double[oSums.Length];
+      var result = new double[oSums.Length];
       for (int i = 0; i < oSums.Length; ++i)
         result[i] = Math.Exp(oSums[i]) / sum;
 
       return result;
     }
 
-    // Overload for backwards compatibility (Baseline MSE, no weight decay)
-    public double[] Train(double[][] trainData, int maxEpochs, double learnRate, double momentum)
-    {
-      return Train(trainData, maxEpochs, learnRate, momentum, ErrorType.MeanSquared, 0.0);
-    }
+    /// <summary>Backwards-compatible overload — defaults to MSE with no weight decay.</summary>
+    public double[] Train(double[][] trainData, int maxEpochs, double learnRate, double momentum) =>
+      Train(trainData, maxEpochs, learnRate, momentum, ErrorType.MeanSquared, 0.0);
 
-    // Full Train method supporting ErrorType and L2 Regularization (Weight Decay)
+    /// <summary>Trains the network using the specified loss function and optional L2 weight decay.</summary>
     public double[] Train(double[][] trainData, int maxEpochs, double learnRate, double momentum,
       ErrorType errorType, double decayRate)
     {
-      double[][] hoGrads = MakeMatrix(numHidden, numOutput, 0.0);
-      double[] obGrads = new double[numOutput];
+      var hoGrads = MakeMatrix(numHidden, numOutput, 0.0);
+      var obGrads = new double[numOutput];
 
-      double[][] ihGrads = MakeMatrix(numInput, numHidden, 0.0);
-      double[] hbGrads = new double[numHidden];
+      var ihGrads = MakeMatrix(numInput, numHidden, 0.0);
+      var hbGrads = new double[numHidden];
 
-      double[] oSignals = new double[numOutput];
-      double[] hSignals = new double[numHidden];
+      var oSignals = new double[numOutput];
+      var hSignals = new double[numHidden];
 
-      double[][] ihPrevWeightsDelta = MakeMatrix(numInput, numHidden, 0.0);
-      double[] hPrevBiasesDelta = new double[numHidden];
-      double[][] hoPrevWeightsDelta = MakeMatrix(numHidden, numOutput, 0.0);
-      double[] oPrevBiasesDelta = new double[numOutput];
+      // previous deltas for momentum
+      var ihPrevWeightsDelta = MakeMatrix(numInput, numHidden, 0.0);
+      var hPrevBiasesDelta = new double[numHidden];
+      var hoPrevWeightsDelta = MakeMatrix(numHidden, numOutput, 0.0);
+      var oPrevBiasesDelta = new double[numOutput];
 
       int epoch = 0;
-      double[] xValues = new double[numInput];
-      double[] tValues = new double[numOutput];
+      var xValues = new double[numInput];
+      var tValues = new double[numOutput];
       double derivative = 0.0;
       double errorSignal = 0.0;
 
@@ -199,7 +198,7 @@ namespace CodingBackProp
         if (epoch % errInterval == 0 && epoch < maxEpochs)
         {
           double trainErr = Error(trainData, errorType);
-          Console.WriteLine("epoch = " + epoch + "  error = " + trainErr.ToString("F4"));
+          Console.WriteLine($"epoch = {epoch}  error = {trainErr:F4}");
         }
 
         Shuffle(sequence);
@@ -210,33 +209,33 @@ namespace CodingBackProp
           Array.Copy(trainData[idx], numInput, tValues, 0, numOutput);
           ComputeOutputs(xValues);
 
-          // 1. Compute output node signals
+          // step 1 — output node error signals
           for (int k = 0; k < numOutput; ++k)
           {
             errorSignal = tValues[k] - outputs[k];
             if (errorType == ErrorType.CrossEntropy)
             {
-              // For Cross-Entropy loss paired with Softmax activation,
-              // dE/dz_k = outputs[k] - tValues[k] (or t - y with our update sign convention)
+              // with softmax + cross-entropy the derivative simplifies to (t - y),
+              // so we skip the extra softmax factor used in MSE
               oSignals[k] = errorSignal;
             }
-            else // MeanSquared
+            else
             {
-              derivative = (1 - outputs[k]) * outputs[k]; // for softmax with MSE
+              derivative = (1 - outputs[k]) * outputs[k]; // softmax derivative
               oSignals[k] = errorSignal * derivative;
             }
           }
 
-          // 2. Compute hidden-to-output weight gradients
+          // step 2 — hidden-to-output weight gradients
           for (int j = 0; j < numHidden; ++j)
             for (int k = 0; k < numOutput; ++k)
               hoGrads[j][k] = oSignals[k] * hOutputs[j];
 
-          // 2b. Compute output bias gradients
+          // step 2b — output bias gradients
           for (int k = 0; k < numOutput; ++k)
             obGrads[k] = oSignals[k] * 1.0;
 
-          // 3. Compute hidden node signals
+          // step 3 — hidden node error signals (back-propagate through tanh)
           for (int j = 0; j < numHidden; ++j)
           {
             derivative = (1 + hOutputs[j]) * (1 - hOutputs[j]); // tanh derivative
@@ -246,18 +245,17 @@ namespace CodingBackProp
             hSignals[j] = derivative * sum;
           }
 
-          // 4. Compute input-hidden weight gradients
+          // step 4 — input-to-hidden weight gradients
           for (int i = 0; i < numInput; ++i)
             for (int j = 0; j < numHidden; ++j)
               ihGrads[i][j] = hSignals[j] * inputs[i];
 
-          // 4b. Compute hidden node bias gradients
+          // step 4b — hidden bias gradients
           for (int j = 0; j < numHidden; ++j)
             hbGrads[j] = hSignals[j] * 1.0;
 
-          // == Update weights and biases ==
+          // --- weight and bias updates ---
 
-          // Update input-to-hidden weights
           for (int i = 0; i < numInput; ++i)
           {
             for (int j = 0; j < numHidden; ++j)
@@ -265,13 +263,12 @@ namespace CodingBackProp
               double delta = ihGrads[i][j] * learnRate;
               ihWeights[i][j] += delta;
               if (decayRate > 0.0)
-                ihWeights[i][j] -= (decayRate * ihWeights[i][j]); // L2 weight decay
+                ihWeights[i][j] -= decayRate * ihWeights[i][j]; // L2 shrinkage
               ihWeights[i][j] += ihPrevWeightsDelta[i][j] * momentum;
               ihPrevWeightsDelta[i][j] = delta;
             }
           }
 
-          // Update hidden biases
           for (int j = 0; j < numHidden; ++j)
           {
             double delta = hbGrads[j] * learnRate;
@@ -280,7 +277,6 @@ namespace CodingBackProp
             hPrevBiasesDelta[j] = delta;
           }
 
-          // Update hidden-to-output weights
           for (int j = 0; j < numHidden; ++j)
           {
             for (int k = 0; k < numOutput; ++k)
@@ -288,13 +284,12 @@ namespace CodingBackProp
               double delta = hoGrads[j][k] * learnRate;
               hoWeights[j][k] += delta;
               if (decayRate > 0.0)
-                hoWeights[j][k] -= (decayRate * hoWeights[j][k]); // L2 weight decay
+                hoWeights[j][k] -= decayRate * hoWeights[j][k]; // L2 shrinkage
               hoWeights[j][k] += hoPrevWeightsDelta[j][k] * momentum;
               hoPrevWeightsDelta[j][k] = delta;
             }
           }
 
-          // Update output node biases
           for (int k = 0; k < numOutput; ++k)
           {
             double delta = obGrads[k] * learnRate;
@@ -305,40 +300,34 @@ namespace CodingBackProp
         }
       }
 
-      double[] bestWts = GetWeights();
-      return bestWts;
+      return GetWeights();
     }
 
     private void Shuffle(int[] sequence)
     {
       for (int i = 0; i < sequence.Length; ++i)
       {
-        int r = this.rnd.Next(i, sequence.Length);
-        int tmp = sequence[r];
-        sequence[r] = sequence[i];
-        sequence[i] = tmp;
+        int r = rnd.Next(i, sequence.Length);
+        (sequence[i], sequence[r]) = (sequence[r], sequence[i]);
       }
     }
 
-    public double Error(double[][] trainData, ErrorType errorType = ErrorType.MeanSquared)
-    {
-      if (errorType == ErrorType.CrossEntropy)
-        return CrossEntropyError(trainData);
-      else
-        return MeanSquaredError(trainData);
-    }
+    public double Error(double[][] trainData, ErrorType errorType = ErrorType.MeanSquared) =>
+      errorType == ErrorType.CrossEntropy
+        ? CrossEntropyError(trainData)
+        : MeanSquaredError(trainData);
 
     public double MeanSquaredError(double[][] trainData)
     {
       double sumSquaredError = 0.0;
-      double[] xValues = new double[numInput];
-      double[] tValues = new double[numOutput];
+      var xValues = new double[numInput];
+      var tValues = new double[numOutput];
 
       for (int i = 0; i < trainData.Length; ++i)
       {
         Array.Copy(trainData[i], xValues, numInput);
         Array.Copy(trainData[i], numInput, tValues, 0, numOutput);
-        double[] yValues = this.ComputeOutputs(xValues);
+        double[] yValues = ComputeOutputs(xValues);
         for (int j = 0; j < numOutput; ++j)
         {
           double err = tValues[j] - yValues[j];
@@ -351,18 +340,19 @@ namespace CodingBackProp
     public double CrossEntropyError(double[][] trainData)
     {
       double sumCrossError = 0.0;
-      double[] xValues = new double[numInput];
-      double[] tValues = new double[numOutput];
+      var xValues = new double[numInput];
+      var tValues = new double[numOutput];
 
       for (int i = 0; i < trainData.Length; ++i)
       {
         Array.Copy(trainData[i], xValues, numInput);
         Array.Copy(trainData[i], numInput, tValues, 0, numOutput);
-        double[] yValues = this.ComputeOutputs(xValues);
+        double[] yValues = ComputeOutputs(xValues);
         for (int j = 0; j < numOutput; ++j)
         {
           if (tValues[j] > 0.0)
           {
+            // clamp to avoid log(0)
             double prob = Math.Max(yValues[j], 1.0e-15);
             sumCrossError += Math.Log(prob);
           }
@@ -389,15 +379,14 @@ namespace CodingBackProp
     {
       int numCorrect = 0;
       int numWrong = 0;
-      double[] xValues = new double[numInput];
-      double[] tValues = new double[numOutput];
-      double[] yValues;
+      var xValues = new double[numInput];
+      var tValues = new double[numOutput];
 
       for (int i = 0; i < testData.Length; ++i)
       {
         Array.Copy(testData[i], xValues, numInput);
         Array.Copy(testData[i], numInput, tValues, 0, numOutput);
-        yValues = this.ComputeOutputs(xValues);
+        double[] yValues = ComputeOutputs(xValues);
         int maxIndex = MaxIndex(yValues);
         int tMaxIndex = MaxIndex(tValues);
 
@@ -406,7 +395,7 @@ namespace CodingBackProp
         else
           ++numWrong;
       }
-      return (numCorrect * 1.0) / (numCorrect + numWrong);
+      return (double)numCorrect / (numCorrect + numWrong);
     }
 
     private static int MaxIndex(double[] vector)

@@ -1,141 +1,122 @@
-# Neural Network Back-Propagation in C# (CS345)
+# BackPropagation Neural Networks
 
 [![C#](https://img.shields.io/badge/Language-C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white)](https://dotnet.microsoft.com/)
 [![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-[![Visual Studio](https://img.shields.io/badge/Visual_Studio-Community-5C2D91?style=for-the-badge&logo=visual-studio&logoColor=white)](https://visualstudio.microsoft.com/)
-[![Machine Learning](https://img.shields.io/badge/Topic-Backpropagation-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white)](https://en.wikipedia.org/wiki/Backpropagation)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://github.com/eitophetamine9/BackPropProgram)
+[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://github.com/Odnerk/BackPropagationNeuralNetworks)
 
-An enhanced implementation of a 3-layer fully connected Artificial Neural Network trained via back-propagation using pure C#, originally based on James McCaffrey's *"Coding Neural Network Back-Propagation Using C#"* (Visual Studio Magazine).
+A from-scratch implementation of a feed-forward neural network trained with back-propagation in C#. Built for CS345 Intelligent Systems, starting from a baseline MSE implementation and extended to support Cross-Entropy loss and L2 regularization.
 
 ---
 
-## Goal and Overview
+## Overview
 
-The goal of this project is to implement, enhance, and evaluate a feed-forward back-propagation neural network for multi-class classification on synthetic continuous data. 
+Three training configurations are implemented and compared side-by-side:
 
-While the baseline article implements back-propagation using **Mean Squared Error (MSE)**, this project investigates and implements two algorithmic modifications:
-1. **Cross-Entropy Error with Softmax Output Activation**: Replacing standard MSE with Cross-Entropy loss to eliminate gradient saturation during probability estimation.
-2. **Weight Decay (L2 Regularization)**: Introducing an explicit weight shrinkage penalty during gradient descent to control weight norms and mitigate model overfitting.
+| # | Configuration | Loss Function | Weight Decay |
+|---|---|---|---|
+| 1 | Baseline | Mean Squared Error | None |
+| 2 | Cross-Entropy | Cross-Entropy | None |
+| 3 | Cross-Entropy + Regularization | Cross-Entropy | L2 ($\lambda = 0.001$) |
 
 ---
 
-## Neural Network Architecture
+## Architecture
 
 ```
-Inputs (4 features)      Hidden Layer (5 nodes, tanh)      Outputs (3 classes, softmax)
-     [ x0 ]  ───────────────>  ( h0 )  ───────────────>  [ y0 ]
-     [ x1 ]  ───────────────>  ( h1 )  ───────────────>  [ y1 ]
-     [ x2 ]  ───────────────>  ( h2 )  ───────────────>  [ y2 ]
-     [ x3 ]  ───────────────>  ( h3 )
-                               ( h4 )
+Input (4)     Hidden (5, tanh)     Output (3, softmax)
+  x0 ───────────> h0 ─────────────────> y0
+  x1 ───────────> h1 ─────────────────> y1
+  x2 ───────────> h2 ─────────────────> y2
+  x3 ───────────> h3
+                  h4
 ```
 
-* **Input Layer**: 4 continuous normalized features ($x_i \in [-10.0, +10.0]$).
-* **Hidden Layer**: 5 hidden processing units utilizing the hyperbolic tangent activation function ($\tanh(x)$).
-* **Output Layer**: 3 mutually exclusive categorical classes encoded in 1-of-$N$ (one-hot) format, utilizing the Softmax activation function.
-* **Parameter Count**:
-  $$\text{Total Parameters} = (4 \times 5) + 5 + (5 \times 3) + 3 = 43 \text{ weights and biases}$$
+- 4 inputs, 5 hidden nodes (tanh), 3 output classes (softmax + one-hot)
+- 43 total parameters: $(4 \times 5) + 5 + (5 \times 3) + 3$
+- Trained on 1,000 synthetic samples — 800 train / 200 test
 
 ---
 
-## Mathematical Formulations and What Was Achieved
+## Why Cross-Entropy
 
-### 1. Cross-Entropy Loss vs. Mean Squared Error
+With MSE, the output gradient is scaled by the softmax derivative:
 
-#### The Problem with MSE + Softmax:
-Under Mean Squared Error ($\text{MSE} = \frac{1}{N} \sum (t_k - y_k)^2$), the output gradient signal contains the derivative of the softmax function:
-$$\delta_k = (t_k - y_k) \cdot y_k \cdot (1 - y_k)$$
-When the computed probability $y_k$ approaches $0.0$ or $1.0$, the term $y_k(1 - y_k) \rightarrow 0$. If the model makes a confident yet incorrect prediction, this derivative causes **gradient saturation**, virtually freezing learning.
+$$\delta_k = (t_k - y_k) \cdot y_k(1 - y_k)$$
 
-#### The Cross-Entropy Enhancement:
-Categorical Cross-Entropy is defined as:
-$$E_{\text{CE}} = -\frac{1}{N} \sum_{n=1}^N \sum_{k=1}^K t_k \ln(y_k)$$
-Taking the derivative with respect to the pre-softmax summation (logit $z_k$):
+When the network is confidently wrong ($y_k \to 0$ or $1$), this term collapses to zero and learning stalls. Switching to Cross-Entropy removes that factor entirely:
+
 $$\frac{\partial E_{\text{CE}}}{\partial z_k} = y_k - t_k \quad \Longrightarrow \quad \delta_k = t_k - y_k$$
-The softmax derivative $(1 - y_k)y_k$ **cancels out entirely**, ensuring strong and linear gradient signals for errors.
+
+The gradient is now directly proportional to the error, which keeps training stable.
 
 ---
 
-### 2. Weight Decay (L2 Regularization)
+## Why Weight Decay
 
-To prevent weights from exploding and overfitting on synthetic training data, an L2 penalty is introduced into the objective function:
+Without regularization, weights can grow large and overfit the training data. Adding an L2 penalty to the loss:
+
 $$E_{\text{reg}} = E + \frac{\lambda}{2} \sum_{i,j} w_{ij}^2$$
 
-During the weight update step with momentum $\mu$ and learning rate $\alpha$:
-$$\Delta w_{ij} = \alpha \cdot \text{grad}_{ij} - \lambda \cdot w_{ij} + \mu \cdot \Delta w_{ij}^{(\text{prev})}$$
-$$w_{ij} \leftarrow w_{ij} + \Delta w_{ij}$$
+translates to a simple shrinkage term in the update rule:
 
-The weight decay rate $\lambda = 0.001$ continuously contracts the magnitude of weights on each iteration.
+$$w_{ij} \leftarrow w_{ij} + \alpha \cdot \nabla w_{ij} - \lambda \cdot w_{ij} + \mu \cdot \Delta w_{ij}^{(\text{prev})}$$
 
 ---
 
-## Experimental Results and Benchmarks
+## Results
 
-All three configurations were evaluated on 1,000 synthetic samples (800 train / 200 test, seed = 1) across 1,000 epochs:
+1,000 epochs, seed = 1:
 
-| Configuration | Loss Function | Weight Decay ($\lambda$) | Train Loss | Weight Norm $\|W\|_2$ | Train Accuracy | Test Accuracy |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1. Baseline** | Mean Squared Error | 0.0000 | 0.0183 | 15.8214 | 99.00% | 98.00% |
-| **2. Cross-Entropy** | Cross-Entropy | 0.0000 | 0.0840 | 48.3211 | 96.75% | 95.50% |
-| **3. Cross-Entropy + Regularization** | Cross-Entropy | 0.0010 | 0.2585 | **3.2556** | 92.00% | 88.00% |
+| Configuration | Train Loss | $\|W\|_2$ | Train Acc | Test Acc |
+| :--- | :---: | :---: | :---: | :---: |
+| 1. Baseline (MSE) | 0.0183 | 15.82 | 99.00% | 98.00% |
+| 2. Cross-Entropy | 0.0840 | 48.32 | 96.75% | 95.50% |
+| 3. Cross-Entropy + Decay | 0.2585 | **3.26** | 92.00% | 88.00% |
 
-### Key Findings:
-1. **Gradient Efficiency:** Cross-Entropy error converges rapidly and avoids output layer saturation.
-2. **Weight Regularization:** Weight decay significantly contracts the model weights from **$48.32$ down to $3.26$** (a **93.2% reduction in weight magnitude**), effectively safeguarding the network against overfitting.
+Weight decay reduced the L2 norm by **93%** (48.32 → 3.26), significantly constraining weight magnitude at the cost of some accuracy.
 
 ---
 
-## Repository Structure
+## Structure
 
 ```
-BackPropProgram/
-├── BackPropProgram Final.cs         # Self-contained all-in-one program with all experiments
-├── CodingBackProp.csproj            # Main SDK-style C# project file (.NET 10.0)
-├── CodingBackProp.slnx              # Visual Studio solution file
+BackPropagationNeuralNetworks/
+├── BackPropProgram.cs               # All-in-one single-file version
+├── BackPropProgram.csproj
+├── BackPropProgram.slnx
 │
-├── Encapsulated Code/               # Modularized, clean architecture implementation
-│   ├── Program.cs                   # Experiment runner and summary display
-│   ├── NeuralNetwork.cs             # Neural network class and backprop engine
-│   ├── ErrorType.cs                 # Enum defining loss functions
-│   ├── DataUtils.cs                 # Synthetic data generator & matrix utilities
-│   └── EncapsulatedCode.csproj      # Standalone project for modular code
+├── src/                             # Modular version split across files
+│   ├── Program.cs
+│   ├── NeuralNetwork.cs
+│   ├── DataUtils.cs
+│   ├── ErrorType.cs
+│   └── BackPropProgram.Modular.csproj
 │
-├── Original Code/                   # Pristine baseline starter code from article
-│   └── BackPropProgram for CS345 IS 1.cs
-│
-├── .gitignore                       # Git ignore rules for .NET and Visual Studio
-└── README.md                        # Project documentation and analysis
+└── original/                        # Unmodified starter code from the article
+    └── BackPropProgram for CS345 IS 1.cs
 ```
 
 ---
 
-## How to Build and Run
+## Running
 
-### Prerequisites
-* [.NET SDK 8.0, 9.0, or 10.0+](https://dotnet.microsoft.com/download)
-* Or [Visual Studio Community 2022+](https://visualstudio.microsoft.com/)
-
-### Running from the Terminal
+**Requirements:** [.NET SDK 10.0+](https://dotnet.microsoft.com/download) or [Visual Studio 2022+](https://visualstudio.microsoft.com/)
 
 ```powershell
-# Clone the repository
-git clone https://github.com/eitophetamine9/BackPropProgram.git
-cd BackPropProgram
+git clone https://github.com/Odnerk/BackPropagationNeuralNetworks.git
+cd BackPropagationNeuralNetworks
 
-# Run the primary All-in-One program
+# Single-file version
 dotnet run
 
-# Or run the modular / encapsulated code
-dotnet run --project "Encapsulated Code/EncapsulatedCode.csproj"
+# Modular version
+dotnet run --project "src/BackPropProgram.Modular.csproj"
 ```
 
-### Running with Visual Studio
-1. Open CodingBackProp.slnx or CodingBackProp.csproj in Visual Studio.
-2. Press F5 or click Start Debugging.
+In Visual Studio: open `BackPropProgram.slnx` and press **F5**.
 
 ---
 
-## Credits and References
-* **Author Reference:** Dr. James McCaffrey, Microsoft Research (*Visual Studio Magazine*).
-* **Course:** CS345 Intelligent Systems.
+## Credits
+
+Based on Dr. James McCaffrey's *"Coding Neural Network Back-Propagation Using C#"* (Visual Studio Magazine) — extended for CS345 Intelligent Systems.
